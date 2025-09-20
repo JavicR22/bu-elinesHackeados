@@ -52,8 +52,8 @@ interface RouteResult {
     }
 }
 
-const API_URL = "http://localhost:8080/pasaje/1";
-const QR_BASE_URL = "http://localhost:8080/pago";
+const API_URL = "https://sendero.clean-air-chicago.com/pasaje/1";
+const QR_BASE_URL = "https://sendero.clean-air-chicago.com/pago";
 
 export default function PassengerPanel() {
     const [destination, setDestination] = useState("")
@@ -332,11 +332,8 @@ const [balance, setBalance] = useState(0);
 
     // --- DATOS Y VARIABLES ---
     const fareZones: FareZone[] = [
-        { id: '1', name: 'Villavicencio', fare: 3000 },
-        { id: '2', name: 'Aeropuerto', fare: 3100 },
-        { id: '3', name: 'Vereda Buena Vista', fare: 4100 },
-        { id: '4', name: 'Vereda Barcelona', fare: 3200 },
-        { id: '5', name: 'Vereda El Cocuy', fare: 3800 },
+        { id: '1', name: 'Zona Urbana', fare: 3000 },
+        { id: '2', name: 'Zona Puerto Lopez', fare: 3100 }
     ];
     
     const currentZone = fareZones.find(z => z.id === selectedFareZone);
@@ -347,7 +344,7 @@ const [balance, setBalance] = useState(0);
     // Función para obtener el saldo (GET)
     const fetchBalance = useCallback(async () => {
         try {
-            const response = await fetch('http://localhost:8080/usuario/1');
+            const response = await fetch('https://sendero.clean-air-chicago.com/usuario/1');
             if (!response.ok) {
                 throw new Error('No se pudo obtener el saldo del usuario.');
             }
@@ -382,7 +379,7 @@ const [balance, setBalance] = useState(0);
     }));
 
     try {
-        const response = await fetch('http://localhost:8080/pasaje/', {
+        const response = await fetch('https://sendero.clean-air-chicago.com/pasaje/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(purchaseDataList), // Send the list
