@@ -10,7 +10,18 @@ import { MapPin, Navigation, CreditCard, Smartphone, Route, Clock } from "lucide
 import MapaRutas from "@/components/mapa-rutas";
 import { Wallet, Ticket } from "lucide-react";
 
-
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose
+} from "@/components/ui/dialog";
+import { QRCodeCanvas } from 'qrcode.react';
+import { Plane } from "lucide-react";
 
 interface Stop {
     lat: number
@@ -41,6 +52,9 @@ interface RouteResult {
     }
 }
 
+const API_URL = "http://localhost:8080/pasaje/1";
+const QR_BASE_URL = "http://localhost:8080/pago";
+
 export default function PassengerPanel() {
     const [destination, setDestination] = useState("")
     const [nearestStop, setNearestStop] = useState<Stop | null>(null)
@@ -50,6 +64,13 @@ export default function PassengerPanel() {
     const [routeResult, setRouteResult] = useState<RouteResult | null>(null)
     const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null)
     const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
+    
+
+    const [tickets, setTickets] = useState({});
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [modalOpen, setModalOpen] = useState(false);
+    const [qrValue, setQrValue] = useState("");
 
     // Definimos las paradas y rutas
     const stops: Stop[] = [
@@ -384,6 +405,45 @@ const [balance, setBalance] = useState(0);
 
 
 
+// Pasajes
+
+
+useEffect(() => {
+        const fetchTickets = async () => {
+            try {
+                const response = await fetch(API_URL);
+                if (!response.ok) {
+                    throw new Error('No se pudo obtener la información de los pasajes.');
+                }
+                const data = await response.json();
+                setTickets(data);
+            } catch (err) {
+                setError(err.message);
+            } finally {
+                setIsLoading(false);
+            }
+        };
+
+        fetchTickets();
+    }, []);
+
+    // Función para manejar el botón "Ver QR"
+    const handleViewQR = (pasajeId, token) => {
+        const qrLink = `${QR_BASE_URL}?conductorId=1&pasajeId=${pasajeId}&token=${token}`;
+        setQrValue(qrLink);
+        setModalOpen(true);
+    };
+
+    if (isLoading) {
+        return <div className="p-4 text-center text-muted-foreground">Cargando pasajes...</div>;
+    }
+
+    if (error) {
+        return <div className="p-4 text-center text-destructive">Error: {error}</div>;
+    }
+
+    const ticketZones = Object.keys(tickets);
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -530,26 +590,27 @@ const [balance, setBalance] = useState(0);
                     <MapaRutas userLocation={userLocation} />
                 </TabsContent>
 
+                
                 <TabsContent value="payment" className="space-y-4">
-                    <Card>
-                <CardHeader>
+                <Card>
+                    <CardHeader>
                     <CardTitle className="flex items-center space-x-2">
                         <Wallet className="h-5 w-5" />
                         <span>Recargar Saldo y Comprar Pasajes</span>
                     </CardTitle>
                     <CardDescription>Gestiona tu saldo y compra tus pasajes aquí.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
+                    </CardHeader>
+                    <CardContent className="space-y-6">
                     {/* Saldo y Botón de Recarga */}
                     <div className="flex items-center justify-between gap-4 p-4 bg-muted rounded-lg">
                         <Button onClick={() => alert('Funcionalidad de recarga no implementada.')}>
-                            Recargar Cuenta
+                        Recargar Cuenta
                         </Button>
                         <div className="text-right">
-                            <Label className="text-xs text-muted-foreground">Saldo Actual</Label>
-                            <p className="text-xl font-bold">
-                                {balance.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
-                            </p>
+                        <Label className="text-xs text-muted-foreground">Saldo Actual</Label>
+                        <p className="text-xl font-bold">
+                            {balance.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+                        </p>
                         </div>
                     </div>
                     
@@ -557,25 +618,25 @@ const [balance, setBalance] = useState(0);
                     <div className="space-y-2">
                         <Label htmlFor="fare-zone">Selecciona la zona</Label>
                         <div className="flex items-center gap-4">
-                            <select
-                                id="fare-zone"
-                                value={selectedFareZone}
-                                onChange={(e) => setSelectedFareZone(e.target.value)}
-                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
-                            >
-                                {fareZones.map((zone) => (
-                                    <option key={zone.id} value={zone.id}>
-                                        {zone.name}
-                                    </option>
-                                ))}
-                            </select>
-                            {currentZone && (
-                                <div className="p-2 border rounded-md whitespace-nowrap bg-secondary">
-                                    <span className="font-semibold text-secondary-foreground">
-                                        Tarifa: {currentZone.fare.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
-                                    </span>
-                                </div>
-                            )}
+                        <select
+                            id="fare-zone"
+                            value={selectedFareZone}
+                            onChange={(e) => setSelectedFareZone(e.target.value)}
+                            className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                        >
+                            {fareZones.map((zone) => (
+                            <option key={zone.id} value={zone.id}>
+                                {zone.name}
+                            </option>
+                            ))}
+                        </select>
+                        {currentZone && (
+                            <div className="p-2 border rounded-md whitespace-nowrap bg-secondary">
+                            <span className="font-semibold text-secondary-foreground">
+                                Tarifa: {currentZone.fare.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+                            </span>
+                            </div>
+                        )}
                         </div>
                     </div>
 
@@ -583,36 +644,120 @@ const [balance, setBalance] = useState(0);
                     <div className="space-y-2">
                         <Label htmlFor="ticket-quantity">Cantidad de Pasajes</Label>
                         <Input
-                            id="ticket-quantity"
-                            type="number"
-                            min="1"
-                            value={ticketQuantity}
-                            onChange={(e) => setTicketQuantity(Math.max(1, Number(e.target.value)))}
-                            className="w-full"
+                        id="ticket-quantity"
+                        type="number"
+                        min="1"
+                        value={ticketQuantity}
+                        onChange={(e) => setTicketQuantity(Math.max(1, Number(e.target.value)))}
+                        className="w-full"
                         />
                     </div>
 
                     {/* Resumen y Botón de Compra */}
                     <div className="p-4 border-t">
                         <div className="flex justify-between items-center mb-4">
-                            <span className="text-lg font-semibold">Total a Pagar:</span>
-                            <span className="text-2xl font-bold text-primary">
-                               {totalCost.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
-                            </span>
+                        <span className="text-lg font-semibold">Total a Pagar:</span>
+                        <span className="text-2xl font-bold text-primary">
+                            {totalCost.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+                        </span>
                         </div>
                         <div className="flex justify-end">
-                            <Button size="lg" onClick={handlePurchase} disabled={!currentZone}>
-                                <Ticket className="mr-2 h-5 w-5" /> Comprar
-                            </Button>
+                        {/* El botón ahora abre el modal */}
+                        <Button size="lg" onClick={() => setShowConfirmation(true)} disabled={!currentZone}>
+                            <Ticket className="mr-2 h-5 w-5" /> Comprar
+                        </Button>
                         </div>
                     </div>
-                </CardContent>
-            </Card>
+                    </CardContent>
+                </Card>
+
+                {/* Modal de Confirmación de Pago */}
+                <Dialog open={showConfirmation} onOpenChange={setShowConfirmation}>
+                    <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                        <DialogTitle>Confirmar Compra</DialogTitle>
+                        <DialogDescription>
+                        Estás a punto de comprar **{ticketQuantity}** pasaje(s) por un total de **{totalCost.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}**.
+                        <br />
+                        Tu saldo actual es de **{balance.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}**.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowConfirmation(false)}>
+                        Cancelar
+                        </Button>
+                        <Button onClick={handlePurchase} disabled={balance < totalCost}>
+                        Confirmar Pago
+                        </Button>
+                    </DialogFooter>
+                    </DialogContent>
+                </Dialog>
                 </TabsContent>
+                
+                
 
                 <TabsContent value="tickets" className="space-y-4">
-                    <h1>Mis Pasajes</h1>
-                </TabsContent>
+            <h1 className="text-2xl font-bold">Mis Pasajes</h1>
+            
+            {ticketZones.length === 0 ? (
+                <div className="p-4 text-center text-muted-foreground">
+                    No tienes pasajes disponibles.
+                </div>
+            ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {ticketZones.map(zone => (
+                        <Card key={zone}>
+                            <CardHeader>
+                                <CardTitle className="capitalize flex items-center space-x-2">
+                                    <Plane className="h-5 w-5" />
+                                    <span>Pasajes para {zone}</span>
+                                </CardTitle>
+                                <CardDescription>
+                                    Pasajes disponibles para la zona de {zone}.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="flex flex-col items-center justify-center space-y-4">
+                                <div className="text-4xl font-extrabold text-primary">
+                                    {tickets[zone].cantidad}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                    Pasaje(s) restante(s)
+                                </div>
+                                <Button
+                                    className="w-full"
+                                    onClick={() => handleViewQR(tickets[zone].pasajeId, tickets[zone].token)}
+                                >
+                                    <Ticket className="mr-2 h-4 w-4" />
+                                    Ver QR
+                                </Button>
+                            </CardContent>
+                        </Card>
+                    ))}
+                </div>
+            )}
+
+            {/* Modal para el código QR */}
+            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+                <DialogContent className="sm:max-w-[350px] p-6 text-center">
+                    <DialogHeader>
+                        <DialogTitle className="text-xl">Código QR del Pasaje</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex justify-center my-4">
+                        <QRCodeCanvas
+                            value={qrValue}
+                            size={200}
+                            bgColor="#ffffff"
+                            fgColor="#000000"
+                            level="H"
+                            includeMargin={true}
+                        />
+                    </div>
+                    <div className="text-xs text-muted-foreground break-all">
+                        {qrValue}
+                    </div>
+                </DialogContent>
+            </Dialog>
+        </TabsContent>
             </Tabs>
         </div>
     )
