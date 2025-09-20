@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback  } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -8,6 +8,10 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { MapPin, Navigation, CreditCard, Smartphone, Route, Clock } from "lucide-react"
 import MapaRutas from "@/components/mapa-rutas";
+import { Wallet, Ticket } from "lucide-react";
+
+
+
 interface Stop {
     lat: number
     lng: number
@@ -282,7 +286,6 @@ export default function PassengerPanel() {
 
         } catch (error) {
             console.error("Error buscando ruta:", error)
-            alert(`Error: ${error.message}`)
         }
 
         setIsSearching(false)
@@ -291,6 +294,95 @@ export default function PassengerPanel() {
     const handleRouteSelect = (route: Route) => {
         setSelectedRoute(route)
     }
+
+//// PAGOS ////
+
+interface FareZone {
+    id: string;
+    name: string;
+    fare: number;
+}
+
+
+const [balance, setBalance] = useState(0);
+    const [selectedFareZone, setSelectedFareZone] = useState('1');
+    const [ticketQuantity, setTicketQuantity] = useState(1);
+    const [showConfirmation, setShowConfirmation] = useState(false);
+
+    // --- DATOS Y VARIABLES ---
+    const fareZones: FareZone[] = [
+        { id: '1', name: 'Villavicencio', fare: 3000 },
+        { id: '2', name: 'Aeropuerto', fare: 3100 },
+        { id: '3', name: 'Vereda Buena Vista', fare: 4100 },
+        { id: '4', name: 'Vereda Barcelona', fare: 3200 },
+        { id: '5', name: 'Vereda El Cocuy', fare: 3800 },
+    ];
+    
+    const currentZone = fareZones.find(z => z.id === selectedFareZone);
+    const totalCost = (currentZone?.fare || 0) * ticketQuantity;
+
+    // --- LÓGICA DE PETICIONES (HOOKS) ---
+
+    // Función para obtener el saldo (GET)
+    const fetchBalance = useCallback(async () => {
+        try {
+            const response = await fetch('http://localhost:8080/usuario/1');
+            if (!response.ok) {
+                throw new Error('No se pudo obtener el saldo del usuario.');
+            }
+            const data = await response.json();
+            setBalance(data.saldo);
+        } catch (error) {
+            console.error("Error al obtener el saldo:", error);
+            alert("No se pudo conectar con el servidor para obtener el saldo.");
+        }
+    }, []);
+
+    // Efecto para llamar a fetchBalance una vez al cargar el componente
+    useEffect(() => {
+        fetchBalance();
+    }, [fetchBalance]);
+
+    // --- FUNCIONES MANEJADORAS (HANDLERS) ---
+
+    // Abre el modal de confirmación
+    const handlePurchase = async () => {
+    if (balance < totalCost) {
+        alert("Saldo insuficiente. Por favor, recargue su cuenta.");
+        setShowConfirmation(false);
+        return;
+    }
+
+    // Create a list of purchaseData objects
+    const purchaseDataList = Array.from({ length: ticketQuantity }, () => ({
+        estado: true,
+        usuario: { usuarioId: "1" },
+        tarifa: { tarifaId: selectedFareZone }
+    }));
+
+    try {
+        const response = await fetch('http://localhost:8080/pasaje/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(purchaseDataList), // Send the list
+        });
+
+        if (!response.ok) {
+            throw new Error('La compra falló en el servidor.');
+        }
+
+        alert('¡Compra realizada con éxito!');
+        await fetchBalance();
+
+    } catch (error) {
+        console.error("Error al realizar la compra:", error);
+        alert("No se pudo completar la compra. Inténtelo de nuevo.");
+    } finally {
+        setShowConfirmation(false);
+    }
+};
+
+
 
     return (
         <div className="space-y-6">
@@ -302,10 +394,11 @@ export default function PassengerPanel() {
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-                <TabsList className="grid w-full grid-cols-3">
+                <TabsList className="grid w-full grid-cols-4">
                     <TabsTrigger value="search">Buscar Ruta</TabsTrigger>
                     <TabsTrigger value="map">Mapa</TabsTrigger>
                     <TabsTrigger value="payment">Pago</TabsTrigger>
+                    <TabsTrigger value="tickets">Pasajes</TabsTrigger>
                 </TabsList>
 
                 <TabsContent value="search" className="space-y-4">
@@ -439,43 +532,86 @@ export default function PassengerPanel() {
 
                 <TabsContent value="payment" className="space-y-4">
                     <Card>
-                        <CardHeader>
-                            <CardTitle className="flex items-center space-x-2">
-                                <CreditCard className="h-5 w-5" />
-                                <span>Pago Digital</span>
-                            </CardTitle>
-                            <CardDescription>Realiza tu pago de forma segura</CardDescription>
-                        </CardHeader>
-                        <CardContent className="space-y-4">
-                            <div className="text-center space-y-4">
-                                <div className="bg-muted p-8 rounded-lg">
-                                    <Smartphone className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                                    <p className="text-muted-foreground">Selecciona una ruta para proceder con el pago</p>
+                <CardHeader>
+                    <CardTitle className="flex items-center space-x-2">
+                        <Wallet className="h-5 w-5" />
+                        <span>Recargar Saldo y Comprar Pasajes</span>
+                    </CardTitle>
+                    <CardDescription>Gestiona tu saldo y compra tus pasajes aquí.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                    {/* Saldo y Botón de Recarga */}
+                    <div className="flex items-center justify-between gap-4 p-4 bg-muted rounded-lg">
+                        <Button onClick={() => alert('Funcionalidad de recarga no implementada.')}>
+                            Recargar Cuenta
+                        </Button>
+                        <div className="text-right">
+                            <Label className="text-xs text-muted-foreground">Saldo Actual</Label>
+                            <p className="text-xl font-bold">
+                                {balance.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {/* Selector de Tarifa */}
+                    <div className="space-y-2">
+                        <Label htmlFor="fare-zone">Selecciona la zona</Label>
+                        <div className="flex items-center gap-4">
+                            <select
+                                id="fare-zone"
+                                value={selectedFareZone}
+                                onChange={(e) => setSelectedFareZone(e.target.value)}
+                                className="flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+                            >
+                                {fareZones.map((zone) => (
+                                    <option key={zone.id} value={zone.id}>
+                                        {zone.name}
+                                    </option>
+                                ))}
+                            </select>
+                            {currentZone && (
+                                <div className="p-2 border rounded-md whitespace-nowrap bg-secondary">
+                                    <span className="font-semibold text-secondary-foreground">
+                                        Tarifa: {currentZone.fare.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+                                    </span>
                                 </div>
+                            )}
+                        </div>
+                    </div>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {routes.map((route) => (
-                                        <Card key={route.id} className="cursor-pointer hover:shadow-md transition-shadow">
-                                            <CardContent className="p-4">
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center space-x-3">
-                                                        <div className={`w-4 h-4 rounded-full bg-${route.color}-500`}></div>
-                                                        <span className="font-medium">{route.name}</span>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <p className="font-bold">${route.fare.toLocaleString()}</p>
-                                                        <Button size="sm" onClick={() => handleRouteSelect(route)}>
-                                                            Pagar
-                                                        </Button>
-                                                    </div>
-                                                </div>
-                                            </CardContent>
-                                        </Card>
-                                    ))}
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
+                    {/* Selector de Cantidad */}
+                    <div className="space-y-2">
+                        <Label htmlFor="ticket-quantity">Cantidad de Pasajes</Label>
+                        <Input
+                            id="ticket-quantity"
+                            type="number"
+                            min="1"
+                            value={ticketQuantity}
+                            onChange={(e) => setTicketQuantity(Math.max(1, Number(e.target.value)))}
+                            className="w-full"
+                        />
+                    </div>
+
+                    {/* Resumen y Botón de Compra */}
+                    <div className="p-4 border-t">
+                        <div className="flex justify-between items-center mb-4">
+                            <span className="text-lg font-semibold">Total a Pagar:</span>
+                            <span className="text-2xl font-bold text-primary">
+                               {totalCost.toLocaleString('es-CO', { style: 'currency', currency: 'COP' })}
+                            </span>
+                        </div>
+                        <div className="flex justify-end">
+                            <Button size="lg" onClick={handlePurchase} disabled={!currentZone}>
+                                <Ticket className="mr-2 h-5 w-5" /> Comprar
+                            </Button>
+                        </div>
+                    </div>
+                </CardContent>
+            </Card>
+                </TabsContent>
+
+                <TabsContent value="tickets" className="space-y-4">
+                    <h1>Mis Pasajes</h1>
                 </TabsContent>
             </Tabs>
         </div>
